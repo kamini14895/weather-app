@@ -1,11 +1,30 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import MET_WEATHER_API from "../met-weather-api";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import LocationItem, { Location } from "./LocationItem";
 import { Row, Col } from "react-bootstrap";
 
 const LocationList: React.FC = () => {
-  const [locations] = useState<Location[]>([{title:"London",woeid:44418},{title:"Southend-on-Sea",woeid:35375},{title:"Luton",woeid:27997},{title:"Cambridge",woeid:14979},{title:"Reading",woeid:32997},{title:"Brighton",woeid:13911},{title:"Ipswich",woeid:24522},{title:"Oxford",woeid:31278},{title:"Northampton",woeid:30599},{title:"Portsmouth",woeid:32452}]);
-  const [fetching] = useState(false);
+  const [locations, setLocations] = useState<Location[]>([]);
+
+  const [fetching, setFetching] = useState(false);
+
+  useEffect(() => {
+   setFetching(true);
+    navigator.geolocation.getCurrentPosition((position) => {
+      MET_WEATHER_API.get<Location[]>(
+        `location/search/?lattlong=${position.coords.latitude},${position.coords.longitude}`
+      )
+        .then((res) => {
+          setLocations(res.data);
+          setFetching(false);
+        })
+        .catch((e) => {
+          console.log(e); // notify user imstead of logging
+          setFetching(false);
+        });
+    });
+  }, []);
 
   let template = <LoadingSpinner />;
 

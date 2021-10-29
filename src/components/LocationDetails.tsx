@@ -1,14 +1,75 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useHistory, useParams } from "react-router";
+import MET_WEATHER_API from "../met-weather-api";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import WeatherDetails, { WeatherInfo } from "./WeatherDetails";
 import {Row, Col } from 'react-bootstrap';
 import Breadcrumb from 'react-bootstrap/Breadcrumb';
-import { Link } from "react-router-dom";
+
+const getDayOrdinal = (dayNumber: number) =>
+  dayNumber +
+  (dayNumber > 0
+    ? ["th", "st", "nd", "rd"][
+        (dayNumber > 3 && dayNumber < 21) || dayNumber % 10 > 3
+          ? 0
+          : dayNumber % 10
+      ]
+    : "");
 
 const LocationDetails: React.FC = () => {
-  const [fetching] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const { woeid } = useParams<{ woeid: string }>();
   
-  const [weatherDetails] = useState<WeatherInfo[]>([{"dayName":"Wed","dayOrdianl":"27th","maxTemp":"17°","minTemp":"13°","icon":"https://www.metaweather.com/static/img/weather/hc.svg","stateName":"Heavy Cloud","windSpeed":"21kmph","humidity":"74%"},{"dayName":"Thu","dayOrdianl":"28th","maxTemp":"17°","minTemp":"12°","icon":"https://www.metaweather.com/static/img/weather/lc.svg","stateName":"Light Cloud","windSpeed":"20kmph","humidity":"71%"},{"dayName":"Fri","dayOrdianl":"29th","maxTemp":"15°","minTemp":"11°","icon":"https://www.metaweather.com/static/img/weather/lr.svg","stateName":"Light Rain","windSpeed":"23kmph","humidity":"80%"},{"dayName":"Sat","dayOrdianl":"30th","maxTemp":"14°","minTemp":"11°","icon":"https://www.metaweather.com/static/img/weather/lr.svg","stateName":"Light Rain","windSpeed":"21kmph","humidity":"84%"},{"dayName":"Sun","dayOrdianl":"31st","maxTemp":"15°","minTemp":"10°","icon":"https://www.metaweather.com/static/img/weather/hr.svg","stateName":"Heavy Rain","windSpeed":"20kmph","humidity":"81%"}]);
+  const [weatherDetails, setWeatherDetails] = useState<WeatherInfo[]>([]);
+  const [cityName, setCityName] = useState("")
+  const validParameter = !!woeid && !isNaN(+woeid);
+  const history = useHistory();
+
+  useEffect(() => {
+    if (!validParameter) {
+        history.replace('/cities')
+        return;
+    }
+      setFetching(true);
+
+      MET_WEATHER_API.get<{
+        consolidated_weather: {
+          applicable_date: string;
+          max_temp: number;
+          min_temp: number;
+          weather_state_abbr: string;
+          weather_state_name :string;
+          wind_speed: number;
+          humidity: number;
+        }[];
+        title: string;
+      }>(`location/${woeid}`)
+        .then((res) => {
+          setCityName(res.data.title);
+          return res.data.consolidated_weather.splice(0, 5).map((d) => {
+            return {
+              dayName: new Date(d.applicable_date).toLocaleDateString("en", {
+                weekday: "short",
+              }),
+              dayOrdianl: getDayOrdinal(new Date(d.applicable_date).getDate()),
+              maxTemp: Math.round(d.max_temp) + "°",
+              minTemp: Math.round(d.min_temp) + "°",
+              icon: `https://www.metaweather.com/static/img/weather/${d.weather_state_abbr}.svg`,
+              stateName: d.weather_state_name,
+              windSpeed: Math.round(d.wind_speed * 1.609344) +'kmph',
+              humidity : Math.round(d.humidity) + '%'
+            };
+          });  
+        })
+        .then((transformedData) => {
+          setWeatherDetails(transformedData);
+          setFetching(false);
+        }).catch(error => {
+            console.log(error)
+            setFetching(false)
+        })
+    
+  }, [woeid, validParameter, history]);
 
   let template = <LoadingSpinner></LoadingSpinner>;
 
@@ -18,9 +79,10 @@ const LocationDetails: React.FC = () => {
         <Row>
             <Col className="mb-5">
             <Breadcrumb>
-            <Breadcrumb.Item  linkAs={Link} linkProps={{to: "/"}}>
-                View Locations
+            <Breadcrumb.Item  href="/">
+                Cities
             </Breadcrumb.Item>
+            <Breadcrumb.Item active>{cityName}</Breadcrumb.Item>
             </Breadcrumb>
                
             </Col>
